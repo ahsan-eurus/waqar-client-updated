@@ -1,0 +1,456 @@
+Metadata: 
+  AWS::CloudFormation::Interface: 
+    ParameterGroups: 
+      - 
+        Label: 
+          default: "Basic Information"
+        Parameters: 
+          - OriginAccountId
+          - EmailAddress
+          - ExternalId
+          - IntegrationType
+      - 
+        Label: 
+          default: "Bucket Information"
+        Parameters:
+          - CecureCloudDataBucket
+          - BillingBucketName
+          - CloudTrailBucketName
+          - ConfigBucketName
+          - GuardDutyBucketName
+
+    ParameterLabels: 
+      OriginAccountId: 
+        default: "Origin Account ID"
+      EmailAddress: 
+        default: "Email Address"
+      ExternalId: 
+        default: "External ID"
+      IntegrationType: 
+        default: "Role Access Type"
+      BillingBucketName: 
+        default: "Billing Bucket"
+      CloudTrailBucketName: 
+        default: "CloudTrail Bucket"
+      ConfigBucketName: 
+        default: "Config Bucket"
+      GuardDutyBucketName: 
+        default: "Guard Duty Bucket"
+      CecureCloudDataBucket:
+        default: "Cecure Cloud Bucket"
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'AWS IAM Role - Stack'
+Parameters:
+  BillingBucketName:
+    Type: String
+    Description: Name of the billing bucket for which policy will be created
+    MaxLength: 50
+  CloudTrailBucketName:
+    Type: String
+    Description: Name of the cloud trail bucket for which policy will be created
+    MaxLength: 50
+  ConfigBucketName:
+    Type: String
+    Description: Name of the config bucket for which policy will be created
+    MaxLength: 50
+  GuardDutyBucketName:
+    Type: String
+    Description: Name of the guard duty bucket for which policy will be created
+    MaxLength: 50
+  OriginAccountId:
+    Type: String
+    MaxLength: 12
+    MinLength: 12
+    Description: Origin account ID for trust relationship
+  EmailAddress:
+    Type: String
+    MaxLength: 30
+    MinLength: 1
+    Description: Email address for tagging (managedby)
+    AllowedPattern: "^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$"
+  ExternalId:
+    Type: String
+    MaxLength: 1224
+    MinLength: 2
+    Description: External ID for policies
+  CecureCloudDataBucket:
+    Type: String
+    Description: Name of the cecure cloud bucket on which data will be synced.
+    Default: "dev-cc-customer-aws-data"
+    MaxLength: 63
+    MinLength: 3
+  IntegrationType:
+    Type: String
+    Default: RO
+    AllowedValues: ["RO", "RW"]
+    Description: ReadOnly or ReadWrite permissions for the role/policy
+
+Conditions:
+  IsReadOnlyIntegrationType: !Equals [!Ref IntegrationType, "RO"]
+  IsReadWriteIntegrationType: !Equals [!Ref IntegrationType, "RW"]
+  
+  IsBillingBucketNameProvided: !Not [!Equals [!Ref BillingBucketName, '' ]]
+  IsCloudTrailBucketNameProvided: !Not [!Equals [!Ref CloudTrailBucketName, '' ]]
+  IsConfigBucketNameProvided: !Not [!Equals [!Ref ConfigBucketName, '' ]]
+  IsGuardDutyBucketNameProvided: !Not [!Equals [!Ref GuardDutyBucketName, '' ]]
+
+Resources:
+
+###############################
+####### Read Only Role ########
+###############################
+
+  ReadOnlyRole:
+    Type: AWS::IAM::Role
+    Condition: IsReadOnlyIntegrationType
+    Properties:
+      Tags: 
+        - Key: managedby
+          Value: !Ref EmailAddress
+      RoleName: "cecurecloud-ro"
+      Policies:
+                    
+        - PolicyName: 'Organization-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "organizations:List*",
+                  "organizations:Describe*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'SecurityHub-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "securityhub:List*",
+                  "securityhub:Get*",
+                  "securityhub:Describe*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'GuardDuty-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "guardduty:Get*",
+                  "guardduty:List*",
+                  "guardduty:Describe*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'Billing-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "aws-portal:ViewPaymentMethods",
+                  "aws-portal:ViewAccount",
+                  "aws-portal:ViewBilling",
+                  "aws-portal:ViewUsage"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'CloudTrail-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "cloudtrail:LookupEvents",
+                  "cloudtrail:GetTrail",
+                  "cloudtrail:ListTrails",
+                  "cloudtrail:ListPublicKeys",
+                  "cloudtrail:ListTags",
+                  "cloudtrail:GetTrailStatus",
+                  "cloudtrail:GetEventSelectors",
+                  "cloudtrail:GetInsightSelectors",
+                  "cloudtrail:DescribeTrails"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'CloudWatch-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "cloudwatch:Describe*",
+                  "cloudwatch:Get*",
+                  "cloudwatch:List*"
+                ]
+                Resource: "*"
+                
+        - PolicyName: 'CloudWatch-Logs-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "logs:List*",
+                  "logs:Describe*",
+                  "logs:Get*",
+                  "logs:Start*",
+                  "logs:Stop*",
+                  "logs:Test*",
+                  "logs:Filter*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'Config-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "config:Get*",
+                  "config:Describe*",
+                  "config:Select*",
+                  "config:List*",
+                  "config:BatchGetResourceConfig",
+                  "config:DeliverConfigSnapshot",
+                  "config:BatchGetAggregateResourceConfig"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'Billing-S3-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "s3:List*",
+                  "s3:Get*",
+                  "s3:Describe*"
+                ]
+                Resource: !If [IsBillingBucketNameProvided, [!Sub "arn:aws:s3:::${BillingBucketName}", !Sub "arn:aws:s3:::${BillingBucketName}/*"], "arn:aws:s3:::dummy/*"] 
+
+        - PolicyName: 'CloudTrail-S3-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "s3:List*",
+                  "s3:Get*",
+                  "s3:Describe*"
+                ]
+                Resource: !If [IsCloudTrailBucketNameProvided, [!Sub "arn:aws:s3:::${CloudTrailBucketName}", !Sub "arn:aws:s3:::${CloudTrailBucketName}/*"], "arn:aws:s3:::dummy/*"] 
+
+        - PolicyName: 'Config-S3-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "s3:List*",
+                  "s3:Get*",
+                  "s3:Describe*"
+                ]
+                Resource: !If [IsConfigBucketNameProvided, [!Sub "arn:aws:s3:::${ConfigBucketName}", !Sub "arn:aws:s3:::${ConfigBucketName}/*"], "arn:aws:s3:::dummy/*"]
+
+        - PolicyName: 'GuardDuty-S3-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "s3:List*",
+                  "s3:Get*",
+                  "s3:Describe*"
+                ]
+                Resource: !If [IsGuardDutyBucketNameProvided, [!Sub "arn:aws:s3:::${GuardDutyBucketName}", !Sub "arn:aws:s3:::${GuardDutyBucketName}/*"], "arn:aws:s3:::dummy/*"] 
+                
+        - PolicyName: 'KMS-ReadOnly-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "kms:Get*",
+                  "kms:Describe*",
+                  "kms:List*",
+                  "kms:Encrypt",
+                  "kms:Decrypt"
+                ]
+                Resource: "*"
+                
+        - PolicyName: 'CC-DataBucket-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "s3:*"
+                ]
+                Resource: [
+                  !Sub "arn:aws:s3:::${CecureCloudDataBucket}",
+                  !Sub "arn:aws:s3:::${CecureCloudDataBucket}/*"
+                ]
+                  
+                  
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              "AWS":
+                !Join ["", ["arn:aws:iam::", !Ref OriginAccountId, ":root"]]
+            Action:
+              - sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+
+###############################
+##### Read and Write Role #####
+###############################
+
+  ReadWriteRole:
+    Type: AWS::IAM::Role
+    Condition: IsReadWriteIntegrationType
+    Properties:
+      Tags: 
+        - Key: managedby
+          Value: !Ref EmailAddress
+      RoleName: "cecurecloud-rw"
+      Policies:
+                    
+        - PolicyName: 'Organization-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "organizations:*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'SecurityHub-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "securityhub:*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'GuardDuty-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "guardduty:*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'Billing-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "aws-portal:*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'CloudTrail-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "cloudtrail:*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'CloudWatch-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "cloudwatch:*"
+                ]
+                Resource: "*"
+                
+        - PolicyName: 'CloudWatch-Logs-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "logs:*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'Config-ReadWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "config:*"
+                ]
+                Resource: "*"
+
+        - PolicyName: 'Billing-S3-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "s3:*"
+                ]
+                Resource: !If [IsBillingBucketNameProvided, [!Sub "arn:aws:s3:::${BillingBucketName}", !Sub "arn:aws:s3:::${BillingBucketName}/*"], "arn:aws:s3:::dummy/*"] 
+        
+        - PolicyName: 'CloudTrail-S3-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "s3:*"
+                ]
+                Resource: !If [IsCloudTrailBucketNameProvided, [!Sub "arn:aws:s3:::${CloudTrailBucketName}", !Sub "arn:aws:s3:::${CloudTrailBucketName}/*"], "arn:aws:s3:::dummy/*"] 
+
+        - PolicyName: 'Config-S3-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "s3:*"
+                ]
+                Resource: !If [IsConfigBucketNameProvided, [!Sub "arn:aws:s3:::${ConfigBucketName}", !Sub "arn:aws:s3:::${ConfigBucketName}/*"], "arn:aws:s3:::dummy/*"]
+
+        - PolicyName: 'GuardDuty-S3-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "s3:*"
+                ]
+                Resource: !If [IsGuardDutyBucketNameProvided, [!Sub "arn:aws:s3:::${GuardDutyBucketName}", !Sub "arn:aws:s3:::${GuardDutyBucketName}/*"], "arn:aws:s3:::dummy/*"] 
+                
+        - PolicyName: 'KMS-ReadAndWrite-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "kms:*",
+                ]
+                Resource: "*"
+                
+        - PolicyName: 'CC-DataBucket-Policy'
+          PolicyDocument: 
+            Statement: 
+              - Effect: "Allow"
+                Action: [
+                  "s3:*"
+                ]
+                Resource: [
+                  !Sub "arn:aws:s3:::${CecureCloudDataBucket}",
+                  !Sub "arn:aws:s3:::${CecureCloudDataBucket}/*"
+                ]
+
+
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              "AWS":
+                !Join ["", ["arn:aws:iam::", !Ref OriginAccountId, ":root"]]
+            Action:
+              - sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref ExternalId
+
+
