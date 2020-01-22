@@ -101,15 +101,13 @@ def whitelist_customer_account(customer_information):
         customer_account_ids.append(customer_information['accountId'])
     else:
         customer_account_ids = customer_information['accountIds'].replace(" ", "").split(",")
+    try:
+        whitelist_customer_accountIds(customer_account_ids)
+    except Exception as e:
+        hasMinorException = True
+        logger.error("Exception: {}".format(e),  exc_info=sys.exc_info())
 
-    for account_id in customer_account_ids:
-        try:
-            whitelist_customer_accountId(account_id)
-        except Exception as e:
-            hasMinorException = True
-            logger.error("Exception: {}".format(e),  exc_info=sys.exc_info())
-
-def whitelist_customer_accountId(accountId):
+def whitelist_customer_accountIds(accountIds):
     s3_client = boto3.client('s3')
 
     # Load the bucket policy as an object
@@ -117,20 +115,20 @@ def whitelist_customer_accountId(accountId):
 
     # Select the statement that will be modified
     statement_to_modify = bucket_policy.select_statement('WhiteListedCustomersAccountIds')
+    for accountId in accountIds:
+        if not is_accountId_already_exists(statement_to_modify, accountId):
 
-    if not is_accountId_already_exists(statement_to_modify, accountId):
+            if type(statement_to_modify.Principal['AWS']) is str:
+                customerAccountIds = []
+                customerAccountIds.append(statement_to_modify.Principal['AWS'])
+                customerAccountIds.append(accountId)
+                statement_to_modify.Principal['AWS'] = customerAccountIds
+            else:
+                statement_to_modify.Principal['AWS'].append(accountId)
 
-        if type(statement_to_modify.Principal['AWS']) is str:
-            accountIds = []
-            accountIds.append(statement_to_modify.Principal['AWS'])
-            accountIds.append(accountId)
-            statement_to_modify.Principal['AWS'] = accountIds
-        else:
-            statement_to_modify.Principal['AWS'].append(accountId)
-
-        # Save change of the statement
-        statement_to_modify.save()
-        statement_to_modify.source_policy.save()
+            # Save change of the statement
+            statement_to_modify.save()
+            statement_to_modify.source_policy.save()
 
 def is_accountId_already_exists(statement_to_modify, accountId):
     return accountId in statement_to_modify.Principal['AWS']
